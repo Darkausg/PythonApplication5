@@ -1,3 +1,4 @@
+from time import sleep
 import pandas as pd
 import os
 
@@ -132,7 +133,7 @@ emojis_clavier = [
     # Visages heureux
     ":)", ":-)", ":D", ":-D", "8D", "8-D", "xD", "XD", "=D", "=)",  
     "^-^", "^^", "^_^", "n_n", "U_U", "UwU", "uwu", "OwO", "owo",  
-    "(^_^)", "(o^_^o)", "(n_n)", "(^-^)", "(=^_^=)",  
+    "(^_^)", "(o^_^o)", "(n_n)", "(^-^)", "(=^_^=)",  "<3", ":')" , ":'(" ,
    
     # Visages tristes et neutres
     ":(", ":-(", ":'(", ":'-(", "T_T", "TT_TT", "T-T", "-_-",  
@@ -157,24 +158,12 @@ test = [[x for x in row.split() ] for row in pos]
 #   2) avoir une fonction qui affiche tout mots avec caractere speciaux qui nesont pas des emoji pour s'assurer qu'on a tout les mots
 #   3) on retire les caracteres speciaux, on mets tout en minuscule yadi-yada
 print("\n\n\n\n")
-print(pos[558])
+print(pos[329])
 send_list_of_list_to_csv(test,"essais")
 ar=10
 
 
 
-def only_caracter(ori_text):
-    """
-    prend un texte en parametre et remplace tous les caracteres qui ne sont pas des lettres par des espaces
-    """
-    letter ="azertyuiopqsdfghjklmwxcvbn"
-    text_treated = ""
-    for i in ori_text:
-        if i in letter:
-            text_treated = text_treated + i
-        else:
-            text_treated = text_treated + " "
-    return text_treated
 
 def liste_occurrences(l):
     """
@@ -203,18 +192,33 @@ def reduction_occurence_unique(d):
     return res
 
 
+
 def tri_dico(d,ascending):
     dico_trie = dict(sorted(d.items(), key=lambda item: item[1],reverse=ascending))
     return dico_trie
 
 def only_caracter(ori_text):
+    if ((ori_text in emoji_lower) or (ori_text in emojis_clavier)):
+        return ori_text
     letter ="azertyuiopqsdfghjklmwxcvbn"
     text_treated = ""
     for i in ori_text:
-        if ( ( i in letter ) or (i in emojis_clavier) ) :
+        if ( i in letter ) :
             text_treated = text_treated + i
         else:
             text_treated = text_treated + " "
+    #il faudra retirer les espaces
+            """
+    if (text_treated in [" "*k for k in range(2,5)]):
+        if (ori_text in emoji_lower):
+            print("GIGA PROBLEME")
+            sleep(1)
+        print("\n\n On a un pb")
+        print(ori_text)
+        print("1" + text_treated + "1")
+        sleep(0.25)
+        """
+
     return text_treated
 
 
@@ -236,7 +240,9 @@ def traitement1(lst):
 
     #supprimez cara speciaux et garder smiley
     a=10
-    list_word = [only_caracter(x)  for x in temp]
+    list_word2 = [only_caracter(x)  for x in temp]
+    space = [" " * z for z in range(15)]
+    list_word = [k for k in list_word2 if (not k in space)]
     words_list = "SCP".join(list_word)
     words_list = words_list.split("SCP")
 
@@ -251,7 +257,7 @@ def traitement1(lst):
     sorted_dict_desc=tri_dico(unique_occurences_dict,False)
     
     # Reduce the dictionary to a specific number of occurrences
-    reduced_dict=reduction_occurence(sorted_dict_desc,0)#redu_ocu, changer 100 en un truc réglable
+    reduced_dict=reduction_occurence(sorted_dict_desc,100)#redu_ocu, changer 100 en un truc réglable
 
     # Sort the dictionary in ascending order of occurrences
     final_sorted_dict=tri_dico(reduced_dict,True)
@@ -301,6 +307,11 @@ function_words = [
 conca_pos = conca_str_in_list(pos)
 conca_neg = conca_str_in_list(neg)
 
+z=only_caracter("<3")
+print(z)
+print("essais")
+sleep(1)
+
 pos_final_sorted_dict,pos_words_list = traitement1(conca_pos)
 neg_final_sorted_dict,neg_words_list = traitement1(conca_neg)
 print(pos_final_sorted_dict)
@@ -310,12 +321,14 @@ corp_tot_final_sorted_dict,corp_tot_words_list = traitement1(conca_pos+" 1 " + c
 
 p_pos = len(pos)/(len(pos)+len(neg))
 p_neg = len(neg)/(len(pos)+len(neg))
-n_corp = (len(pos)+len(neg))
-clear = "\n"
+n_corp = (len(pos_words_list)+len(neg_words_list))
+clear = "\n"*50
 print(clear)
 print(p_pos)
 print(p_neg)
 print(p_pos+p_neg)
+print("nbr omt")
+print(n_corp)
 #envoyer les dico et liste en CSV
 
 
