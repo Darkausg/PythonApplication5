@@ -8,9 +8,7 @@ import os
 Lecteur des csv
 
 """
-train_df = pd.read_csv("./tweets_train.csv", sep=",", header=None, skipinitialspace=True, quotechar='"').values.tolist()
-dev_df = pd.read_csv("./tweets_dev.csv", sep=",", header=None, skipinitialspace=True, quotechar='"').values.tolist()
-test_df = pd.read_csv("./tweets_test.csv", sep=",", header=None, skipinitialspace=True, quotechar='"').values.tolist()
+
 """
 print(train_df)
 print(dev_df)
@@ -112,17 +110,15 @@ def seperate_pos_nega(liste_tweet):
             train_neg.append(i[1])
     return train_pos,train_neg
 
-pos,neg = seperate_pos_nega(train_df)
-print(pos)
-c=1
+
 
 
 def sep_tweet_label(liste_tweet):
     label = []
     tweet = []
     for i in liste_tweet:
-        label = i[0]
-        tweet = i[1]
+        label.append(i[0])
+        tweet.append(i[1])
     return label,tweet
 
 #emoji = 2 cara speciaux diferents; ou  les prendres de la liste envoyé pr mail
@@ -152,14 +148,14 @@ emojis_clavier = [
 
 emoji_lower = [x.lower for x in emojis_clavier]
 
-test = [[x for x in row.split() ] for row in pos]
+#test = [[x for x in row.split() ] for row in pos]
 #on parcourt chaque ligne de test
 #   1) on retire les emojis
 #   2) avoir une fonction qui affiche tout mots avec caractere speciaux qui nesont pas des emoji pour s'assurer qu'on a tout les mots
 #   3) on retire les caracteres speciaux, on mets tout en minuscule yadi-yada
 print("\n\n\n\n")
-print(pos[329])
-send_list_of_list_to_csv(test,"essais")
+#print(pos[329])
+#send_list_of_list_to_csv(test,"essais")
 ar=10
 
 
@@ -206,7 +202,7 @@ def only_caracter(ori_text):
         if ( i in letter ) :
             text_treated = text_treated + i
         else:
-            text_treated = text_treated + " "
+            text_treated = text_treated + "SCP"
     #il faudra retirer les espaces
             """
     if (text_treated in [" "*k for k in range(2,5)]):
@@ -233,7 +229,7 @@ def conca_str_in_list(lst):
     conca_lst = "".join(lst)
     return conca_lst
 
-def traitement1(lst):
+def subtraitement(lst):
     lst.lower()
     temp=lst.lower()
     temp= temp.split()
@@ -244,7 +240,11 @@ def traitement1(lst):
     space = [" " * z for z in range(15)]
     list_word = [k for k in list_word2 if (not k in space)]
     words_list = "SCP".join(list_word)
-    words_list = words_list.split("SCP")
+    return (words_list.split("SCP"))
+
+def traitement1(lst):
+
+    words_list = subtraitement(lst)
 
     # Create initial word occurrence dictionary
     initial_word_dict=liste_occurrences(words_list)
@@ -257,7 +257,7 @@ def traitement1(lst):
     sorted_dict_desc=tri_dico(unique_occurences_dict,False)
     
     # Reduce the dictionary to a specific number of occurrences
-    reduced_dict=reduction_occurence(sorted_dict_desc,100)#redu_ocu, changer 100 en un truc réglable
+    reduced_dict=reduction_occurence(sorted_dict_desc,0)#redu_ocu, changer 100 en un truc réglable
 
     # Sort the dictionary in ascending order of occurrences
     final_sorted_dict=tri_dico(reduced_dict,True)
@@ -266,6 +266,7 @@ def traitement1(lst):
 
 #liste des stop-words (les mots les plus fréquents qui ne portent pas d'information), oui c'est généré par IA
 function_words = [
+    "virginamerica"
     # Articles
     "a", "an", "the",
     
@@ -304,32 +305,67 @@ function_words = [
     "do", "does", "did", "been", "being", "has", "have", "had", "am", "is", "are", "was", "were", "be"
 ]
 
-conca_pos = conca_str_in_list(pos)
-conca_neg = conca_str_in_list(neg)
-
-z=only_caracter("<3")
-print(z)
-print("essais")
-sleep(1)
-
-pos_final_sorted_dict,pos_words_list = traitement1(conca_pos)
-neg_final_sorted_dict,neg_words_list = traitement1(conca_neg)
-print(pos_final_sorted_dict)
-
-corp_tot_final_sorted_dict,corp_tot_words_list = traitement1(conca_pos+" 1 " + conca_neg)
 
 
-p_pos = len(pos)/(len(pos)+len(neg))
-p_neg = len(neg)/(len(pos)+len(neg))
-n_corp = (len(pos_words_list)+len(neg_words_list))
-clear = "\n"*50
-print(clear)
-print(p_pos)
-print(p_neg)
-print(p_pos+p_neg)
-print("nbr omt")
-print(n_corp)
+
 #envoyer les dico et liste en CSV
 
+def p_mot(dico,effectif):
+    res = {}
+    for i in dico:
+        res[i] =  dico[i]/effectif
+    return res
+
+def classification_tweet(lst):
+    for i in lst:
+        pass
+    if True:#proba pos > prob neg
+        return "positive"
+    else:
+        return "negative"
+    pass
 
 
+def main():
+    if (os.path.exists("dicodico_essais_train_pos.csv") and os.path.exists("dicodico_essais_train_neg.csv") and os.path.exists("dicodico_essais_corp.csv")):
+        train_df = pd.read_csv("./tweets_train.csv", sep=",", header=None, skipinitialspace=True, quotechar='"').values.tolist()
+        dev_df = pd.read_csv("./tweets_dev.csv", sep=",", header=None, skipinitialspace=True, quotechar='"').values.tolist()
+        test_df = pd.read_csv("./tweets_test.csv", sep=",", header=None, skipinitialspace=True, quotechar='"').values.tolist()
+        pos,neg = seperate_pos_nega(train_df)
+        #print(pos)
+        c=1
+        conca_pos = conca_str_in_list(pos)
+        conca_neg = conca_str_in_list(neg)
+        pos_final_sorted_dict,pos_words_list = traitement1(conca_pos)
+        neg_final_sorted_dict,neg_words_list = traitement1(conca_neg)
+        #print(pos_final_sorted_dict)
+
+        corp_tot_final_sorted_dict,corp_tot_words_list = traitement1(conca_pos+" 1 " + conca_neg)
+
+        send_dico_to_csv(pos_final_sorted_dict,"dico_essais_train_pos")
+        send_dico_to_csv(neg_final_sorted_dict,"dico_essais_train_neg")
+        send_dico_to_csv(corp_tot_final_sorted_dict,"dico_essais_corp")
+
+    else:
+        
+        zr=0
+    a=120
+    p_pos = len(pos)/(len(pos)+len(neg))
+    p_neg = len(neg)/(len(pos)+len(neg))
+    n_corp = (len(pos_words_list)+len(neg_words_list))
+    clear = "\n"*50
+    """print(clear)
+    print(p_pos)
+    print(p_neg)
+    print(p_pos+p_neg)
+    print("nbr omt")
+    print(n_corp)"""
+    p_mot_dic=p_mot(corp_tot_final_sorted_dict,n_corp)
+    print(dev_df)
+    label_dev,tweet_dev=sep_tweet_label(dev_df)
+    prediction = [classification_tweet(x) for x in tweet_dev]
+    rzse=0
+    pass
+
+main()
+#top pour projet 94%
