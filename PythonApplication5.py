@@ -3,6 +3,23 @@ import pandas as pd
 import os
 
 
+
+class Proba:
+    """
+    Args:
+        p_m_sachant_pos      #proba de chaque mot sachant que le label est positif : P(m|POS)
+        p_m_sachant_neg      #proba de chaque mot sachant que le label est negatif : P(m|NEG)
+        p_m                  #proba du mot dans le corpus                            P(m)
+        p_pos                #proba tweet positif parmi ensemble de tweet            P(POS)
+        p_neg                #proba tweet negatif parmi ensemble de tweet            P(NEG)
+    """
+    def __init__(self,p_m_sachant_pos,p_m_sachant_neg,p_m,p_pos,p_neg):
+        self.p_m_sachant_pos = p_m_sachant_pos      #proba de chaque mot sachant que le label est positif : P(m|POS)
+        self.p_m_sachant_neg = p_m_sachant_neg      #proba de chaque mot sachant que le label est negatif : P(m|NEG)
+        self.p_m = p_m                      #proba du mot dans le corpus                            P(m)
+        self.p_pos = p_pos                        #proba tweet positif parmi ensemble de tweet            P(POS)
+        self.p_neg = p_neg                        #proba tweet negatif parmi ensemble de tweet            P(NEG)
+    
 """
 
 Lecteur des csv
@@ -196,6 +213,8 @@ def tri_dico(d,ascending):
 def only_caracter(ori_text):
     if ((ori_text in emoji_lower) or (ori_text in emojis_clavier)):
         return ori_text
+    if ori_text.isalpha():
+        return ori_text
     letter ="azertyuiopqsdfghjklmwxcvbn"
     text_treated = ""
     for i in ori_text:
@@ -229,14 +248,23 @@ def conca_str_in_list(lst):
     conca_lst = "".join(lst)
     return conca_lst
 
-def subtraitement(lst):
-    lst.lower()
-    temp=lst.lower()
-    temp= temp.split()
+def subtraitement(string):
+    """
+    revoie une liste de mots
+
+    Args:
+        string (str)
+
+    Return:
+        word_list (str)
+    """
+    temp=string.lower()
+    temp2= temp.split()
 
     #supprimez cara speciaux et garder smiley
+    #supprimer tout ce qui commence par https
     a=10
-    list_word2 = [only_caracter(x)  for x in temp]
+    list_word2 = [only_caracter(x)  for x in temp2]
     space = [" " * z for z in range(15)]
     list_word = [k for k in list_word2 if (not k in space)]
     words_list = "SCP".join(list_word)
@@ -316,18 +344,25 @@ def p_mot(dico,effectif):
         res[i] =  dico[i]/effectif
     return res
 
-def classification_tweet(lst):
-    for i in lst:
-        pass
-    if True:#proba pos > prob neg
+def classification_tweet(string,data_proba):#lst un string (dans ce cas il s'agit d'un tweet)
+
+    p_prediction_pos = data_proba.p_pos  #var indiquant la proba que le tweet est positif sachant les mots du tweets
+    p_prediction_neg = data_proba.p_neg  #var indiquant la proba que le tweet est negatif sachant les mots du tweets
+    #traitement texte
+    tweet = subtraitement(string)
+    #calcul proba
+    for i in tweet: #i est un mot du tweet
+        p_prediction_pos = p_prediction_pos * ( data_proba.p_m_sachant_pos[ i ] * data_proba.p_m[i] )
+        p_prediction_neg = p_prediction_neg * ( data_proba.p_m_sachant_neg[i] * data_proba.p_m[i] )
+    if (p_prediction_pos > p_prediction_neg) :        #proba pos > prob neg
         return "positive"
-    else:
+    else:           #proba neg > proba pos
         return "negative"
     pass
 
 
 def main():
-    if (os.path.exists("dicodico_essais_train_pos.csv") and os.path.exists("dicodico_essais_train_neg.csv") and os.path.exists("dicodico_essais_corp.csv")):
+    if not(os.path.exists("dicodico_essais_train_pos.csv") and os.path.exists("dicodico_essais_train_neg.csv") and os.path.exists("dicodico_essais_corp.csv")):
         train_df = pd.read_csv("./tweets_train.csv", sep=",", header=None, skipinitialspace=True, quotechar='"').values.tolist()
         dev_df = pd.read_csv("./tweets_dev.csv", sep=",", header=None, skipinitialspace=True, quotechar='"').values.tolist()
         test_df = pd.read_csv("./tweets_test.csv", sep=",", header=None, skipinitialspace=True, quotechar='"').values.tolist()
@@ -350,9 +385,11 @@ def main():
         
         zr=0
     a=120
-    p_pos = len(pos)/(len(pos)+len(neg))
-    p_neg = len(neg)/(len(pos)+len(neg))
-    n_corp = (len(pos_words_list)+len(neg_words_list))
+    p_pos = len(pos)/(len(pos)+len(neg))#proba tweet positif parmi ensemble de tweet
+    p_neg = len(neg)/(len(pos)+len(neg))#proba tweet negatif parmi ensemble de tweet
+    n_corp = (len(pos_words_list)+len(neg_words_list))#nombre total de mot dans le corpus
+    p_mot_dic_pos = p_mot(pos_final_sorted_dict,len(pos_words_list))#proba de chaque mot sachant que le label est positif
+    p_mot_dic_neg = p_mot(neg_final_sorted_dict,len(neg_words_list))#proba de chaque mot sachant que le label est negatif
     clear = "\n"*50
     """print(clear)
     print(p_pos)
@@ -360,12 +397,17 @@ def main():
     print(p_pos+p_neg)
     print("nbr omt")
     print(n_corp)"""
-    p_mot_dic=p_mot(corp_tot_final_sorted_dict,n_corp)
-    print(dev_df)
+    p_mot_dic=p_mot(corp_tot_final_sorted_dict,n_corp)#proba du mot dans le corpus
+
+    proba_train = Proba(p_mot_dic_pos,p_mot_dic_neg,p_mot_dic,p_pos,p_neg)#on rassemble toutes les variables dans un seul objet pour se simplifier la vie
+    #print(dev_df)
     label_dev,tweet_dev=sep_tweet_label(dev_df)
-    prediction = [classification_tweet(x) for x in tweet_dev]
+    print(p_mot_dic_pos["amazingly"])
+    prediction = [classification_tweet(x,proba_train) for x in tweet_dev]
+    print(prediction)
     rzse=0
     pass
 
 main()
 #top pour projet 94%
+
