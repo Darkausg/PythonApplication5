@@ -51,7 +51,7 @@ def read_file_from_csv(file_path):
 
 def send_simple_list_to_txt(lst,file_name):
     try:
-        with open("simple_liste" + file_name + ".txt", 'w') as f:
+        with open("simple_liste" + file_name + ".txt", 'w',encoding="UTF-8") as f:
             for i in lst:
                 f.write( i + "\n")
     except Exception as e:
@@ -213,8 +213,12 @@ def tri_dico(d,ascending):
 def only_caracter(ori_text):
     if ((ori_text in emoji_lower) or (ori_text in emojis_clavier)):
         return ori_text
-    if ori_text.isalpha():
+    if ori_text.isalpha():#que des lettres
         return ori_text
+    if ori_text.isalnum():#que des numbres
+        pass
+    if (ori_text in function_words):
+        pass
     letter ="azertyuiopqsdfghjklmwxcvbn"
     text_treated = ""
     for i in ori_text:
@@ -245,7 +249,7 @@ def reduction_occurence(d,t):
     return d
 
 def conca_str_in_list(lst):
-    conca_lst = "".join(lst)
+    conca_lst = " ".join(lst)
     return conca_lst
 
 def subtraitement(string):
@@ -259,15 +263,17 @@ def subtraitement(string):
         word_list (str)
     """
     temp=string.lower()
-    temp2= temp.split()
-
+    temp2= temp.split()#temp2 est une liste
+    send_simple_list_to_txt(temp2,"temp2")
     #supprimez cara speciaux et garder smiley
     #supprimer tout ce qui commence par https
     a=10
     list_word2 = [only_caracter(x)  for x in temp2]
+    send_simple_list_to_txt(list_word2,"list_word2")
     space = [" " * z for z in range(15)]
     list_word = [k for k in list_word2 if (not k in space)]
     words_list = "SCP".join(list_word)
+    send_simple_list_to_txt(words_list.split("SCP"),"WORKNOW")
     return (words_list.split("SCP"))
 
 def traitement1(lst):
@@ -278,8 +284,8 @@ def traitement1(lst):
     initial_word_dict=liste_occurrences(words_list)
 
     # Remove words with a single occurrence
-    unique_occurences_dict=reduction_occurence_unique(initial_word_dict)
-
+    #unique_occurences_dict=reduction_occurence_unique(initial_word_dict)
+    unique_occurences_dict = initial_word_dict
 
     # Sort the dictionary in descending order of occurrences
     sorted_dict_desc=tri_dico(unique_occurences_dict,False)
@@ -352,17 +358,26 @@ def classification_tweet(string,data_proba):#lst un string (dans ce cas il s'agi
     tweet = subtraitement(string)
     #calcul proba
     for i in tweet: #i est un mot du tweet
-        p_prediction_pos = p_prediction_pos * ( data_proba.p_m_sachant_pos[ i ] * data_proba.p_m[i] )
-        p_prediction_neg = p_prediction_neg * ( data_proba.p_m_sachant_neg[i] * data_proba.p_m[i] )
+        #demander au prof comment on fait quand un mot n'est pas dans le dico des mots positif ou negatif
+        if (i in data_proba.p_m_sachant_pos):
+            p_prediction_pos = p_prediction_pos * ( data_proba.p_m_sachant_pos[ i ] / data_proba.p_m[i] )
+        if (i in data_proba.p_m_sachant_neg):
+            p_prediction_neg = p_prediction_neg * ( data_proba.p_m_sachant_neg[i] / data_proba.p_m[i] )
     if (p_prediction_pos > p_prediction_neg) :        #proba pos > prob neg
         return "positive"
     else:           #proba neg > proba pos
         return "negative"
     pass
 
-
+#demander au prof comment on fait quand un mot n'est pas dans le dico des mots positif ou negatif
+#demander au prof comment on fait quand un mot n'est pas dans le dico des mots positif ou negatif
+#demander au prof comment on fait quand un mot n'est pas dans le dico des mots positif ou negatif
+#demander au prof comment on fait quand un mot n'est pas dans le dico des mots positif ou negatif
+#demander au prof comment on fait quand un mot n'est pas dans le dico des mots positif ou negatif
+#demander au prof comment on fait quand un mot n'est pas dans le dico des mots positif ou negatif
+#demander au prof comment on fait quand un mot n'est pas dans le dico des mots positif ou negatif
 def main():
-    if not(os.path.exists("dicodico_essais_train_pos.csv") and os.path.exists("dicodico_essais_train_neg.csv") and os.path.exists("dicodico_essais_corp.csv")):
+    if (os.path.exists("dicodico_essais_train_pos.csv") and os.path.exists("dicodico_essais_train_neg.csv") and os.path.exists("dicodico_essais_corp.csv")):
         train_df = pd.read_csv("./tweets_train.csv", sep=",", header=None, skipinitialspace=True, quotechar='"').values.tolist()
         dev_df = pd.read_csv("./tweets_dev.csv", sep=",", header=None, skipinitialspace=True, quotechar='"').values.tolist()
         test_df = pd.read_csv("./tweets_test.csv", sep=",", header=None, skipinitialspace=True, quotechar='"').values.tolist()
@@ -401,10 +416,39 @@ def main():
 
     proba_train = Proba(p_mot_dic_pos,p_mot_dic_neg,p_mot_dic,p_pos,p_neg)#on rassemble toutes les variables dans un seul objet pour se simplifier la vie
     #print(dev_df)
+    
     label_dev,tweet_dev=sep_tweet_label(dev_df)
-    print(p_mot_dic_pos["amazingly"])
     prediction = [classification_tweet(x,proba_train) for x in tweet_dev]
     print(prediction)
+    nbr_pos = prediction.count("positive")
+    nbr_neg = prediction.count("negative")
+    print(f"L'element positive apparait {nbr_pos} fois dans la liste.")
+    print(f"L'element negative apparait {nbr_neg} fois dans la liste.")
+    pourcent = nbr_pos/len(prediction)
+    print(f"il y a {pourcent}% d'element positif")
+    pourcent = pourcent+0.2228
+    print(pourcent)
+    """
+    label_dev,tweet_dev=sep_tweet_label(test_df)
+    prediction = [classification_tweet(x,proba_train) for x in tweet_dev]
+    print(prediction)
+    nbr_pos = prediction.count("positive")
+    nbr_neg = prediction.count("negative")
+    print(f"L'element positive apparait {nbr_pos} fois dans la liste.")
+    print(f"L'element negative apparait {nbr_neg} fois dans la liste.")
+    pourcent = nbr_pos/len(prediction)
+    print(f"il y a {pourcent}% d'element positif")
+    """
+    #on trouve 22% de positif et on a 90% de reussite quand on compare au label qui existe
+    compare = []
+    for i in range(len(prediction)):
+        if (prediction[i]==label_dev[i]):
+            compare.append(1)
+        else:
+            compare.append(0)
+    accuracy = compare.count(1)/len(compare)
+    print("accuracy est de :")
+    print(accuracy)
     rzse=0
     pass
 
