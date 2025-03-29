@@ -1,6 +1,7 @@
 from time import sleep
 import pandas as pd
 import os
+import re
 
 
 
@@ -19,7 +20,16 @@ class Proba:
         self.p_m = p_m                      #proba du mot dans le corpus                            P(m)
         self.p_pos = p_pos                        #proba tweet positif parmi ensemble de tweet            P(POS)
         self.p_neg = p_neg                        #proba tweet negatif parmi ensemble de tweet            P(NEG)
-    
+ 
+        
+class Tweet:
+    def __init__(self,p_pos_mot,p_pos,p_neg_mot,p_neg,label):
+        self.p_pos_mot = p_pos_mot
+        self.p_pos = p_pos
+        self.p_neg_mot = p_neg_mot
+        self.p_neg = p_neg
+        self.label = label
+
 """
 
 Lecteur des csv
@@ -211,34 +221,28 @@ def tri_dico(d,ascending):
     return dico_trie
 
 def only_caracter(ori_text):
+
     if ((ori_text in emoji_lower) or (ori_text in emojis_clavier)):
         return ori_text
+
+    if ori_text.isdigit():#que des numbres
+        return ""
+
+    if (ori_text in function_words):#est dans un mots pour lequel soit il ne carrie pas d'information (stop-words classique, ex: the,and..) soit on estime qu'il n'est pas important
+        return ""
+
     if ori_text.isalpha():#que des lettres
         return ori_text
-    if ori_text.isalnum():#que des numbres
-        pass
-    if (ori_text in function_words):
-        pass
-    letter ="azertyuiopqsdfghjklmwxcvbn"
-    text_treated = ""
-    for i in ori_text:
-        if ( i in letter ) :
-            text_treated = text_treated + i
-        else:
-            text_treated = text_treated + "SCP"
-    #il faudra retirer les espaces
-            """
-    if (text_treated in [" "*k for k in range(2,5)]):
-        if (ori_text in emoji_lower):
-            print("GIGA PROBLEME")
-            sleep(1)
-        print("\n\n On a un pb")
-        print(ori_text)
-        print("1" + text_treated + "1")
-        sleep(0.25)
-        """
 
-    return text_treated
+    if ori_text.startswith("https"):#retirer les liens hypertext, verifier qu'il commence par https
+        return ""
+
+    #remplacer cette abomination par un regex // fait
+    words_only_char = re.sub(r'[^a-zA-Z]', '', ori_text)#si jamais il y avait un cara special colle au function word
+    if ori_text in function_words:
+        return ""
+
+    return words_only_char
 
 
 def reduction_occurence(d,t):
@@ -270,11 +274,7 @@ def subtraitement(string):
     a=10
     list_word2 = [only_caracter(x)  for x in temp2]
     send_simple_list_to_txt(list_word2,"list_word2")
-    space = [" " * z for z in range(15)]
-    list_word = [k for k in list_word2 if (not k in space)]
-    words_list = "SCP".join(list_word)
-    send_simple_list_to_txt(words_list.split("SCP"),"WORKNOW")
-    return (words_list.split("SCP"))
+    return list_word2#.split("SCP"))
 
 def traitement1(lst):
 
@@ -299,8 +299,11 @@ def traitement1(lst):
     return final_sorted_dict,words_list
 
 #liste des stop-words (les mots les plus fréquents qui ne portent pas d'information), oui c'est généré par IA
+
+afunction_words = read_simple_list_from_txt("stop_words_english")
+
 function_words = [
-    "virginamerica"
+    "virginamerica","@virginamerica",
     # Articles
     "a", "an", "the",
     
@@ -312,7 +315,7 @@ function_words = [
     "through", "against", "into", "onto", "upon", "out", "off", "along", "inside", "outside", "beneath",
     
     # Pronoms personnels
-    "I", "you", "he", "she", "it", "we", "they", "me", "him", "her", "us", "them",
+    "I", "you", "he", "she", "it", "we", "they", "me", "him", "her", "us", "them","i","s",
     
     # Pronoms possessifs
     "mine", "yours", "his", "hers", "ours", "theirs",
@@ -358,7 +361,9 @@ def classification_tweet(string,data_proba):#lst un string (dans ce cas il s'agi
     tweet = subtraitement(string)
     #calcul proba
     for i in tweet: #i est un mot du tweet
-        #demander au prof comment on fait quand un mot n'est pas dans le dico des mots positif ou negatif
+        if  not ( i in data_proba.p_m):#si il n'est pas dans le corpus general, il ne peut pas être dans les corpus positif ou corpus negatif
+            continue
+        
         if (i in data_proba.p_m_sachant_pos):
             p_prediction_pos = p_prediction_pos * ( data_proba.p_m_sachant_pos[ i ] / data_proba.p_m[i] )
         if (i in data_proba.p_m_sachant_neg):
@@ -369,18 +374,110 @@ def classification_tweet(string,data_proba):#lst un string (dans ce cas il s'agi
         return "negative"
     pass
 
-#demander au prof comment on fait quand un mot n'est pas dans le dico des mots positif ou negatif
-#demander au prof comment on fait quand un mot n'est pas dans le dico des mots positif ou negatif
-#demander au prof comment on fait quand un mot n'est pas dans le dico des mots positif ou negatif
-#demander au prof comment on fait quand un mot n'est pas dans le dico des mots positif ou negatif
-#demander au prof comment on fait quand un mot n'est pas dans le dico des mots positif ou negatif
-#demander au prof comment on fait quand un mot n'est pas dans le dico des mots positif ou negatif
-#demander au prof comment on fait quand un mot n'est pas dans le dico des mots positif ou negatif
+
+
+def classification_tweet_iteratif(tweet,data_proba):#lst un string (dans ce cas il s'agit d'un tweet)
+    p_prediction_pos = tweet.p_pos  #var indiquant la proba que le tweet est positif sachant les mots du tweets
+    p_prediction_neg = tweet.p_neg  #var indiquant la proba que le tweet est negatif sachant les mots du tweets
+    p_prediction_pos = p_prediction_pos *tweet.p_pos_mot
+    p_prediction_neg = p_prediction_neg *tweet.p_neg_mot
+    if (p_prediction_pos > p_prediction_neg) :        #proba pos > prob neg
+        tweet.p_pos = p_prediction_pos
+        tweet.p_neg = p_prediction_neg
+        tweet.label = "positive"
+        return tweet
+    else:           #proba neg > proba pos
+        tweet.p_pos = p_prediction_pos
+        tweet.p_neg = p_prediction_neg
+        tweet.label = "negative"
+        return tweet
+    pass
+
+def classification_tweet_iteratif_first_time(string,data_proba):#lst un string (dans ce cas il s'agit d'un tweet)
+
+    p_prediction_pos = 1  #var indiquant la proba que le tweet est positif sachant les mots du tweets
+    p_prediction_neg = 1  #var indiquant la proba que le tweet est negatif sachant les mots du tweets
+    #traitement texte
+    tweet = subtraitement(string)
+    #calcul proba
+    for i in tweet: #i est un mot du tweet
+        if (i in data_proba.p_m_sachant_pos):
+            p_prediction_pos = p_prediction_pos * ( data_proba.p_m_sachant_pos[ i ] / data_proba.p_m[i] )
+        if (i in data_proba.p_m_sachant_neg):
+            p_prediction_neg = p_prediction_neg * ( data_proba.p_m_sachant_neg[i] / data_proba.p_m[i] )
+
+    proba_predic_is_pos = (p_prediction_pos*data_proba.p_pos)
+    proba_predic_is_neg = (p_prediction_neg * data_proba.p_neg)
+
+    if ( proba_predic_is_pos > proba_predic_is_neg ) :        #proba pos > prob neg
+        tweet = Tweet(p_prediction_pos,proba_predic_is_pos,p_prediction_neg,proba_predic_is_neg,"positive")
+        return tweet
+    else:           #proba neg > proba pos
+        tweet = Tweet(p_prediction_pos,(p_prediction_pos*data_proba.p_pos),p_prediction_neg,(p_prediction_neg * data_proba.p_neg),"negative")
+        return tweet
+    pass
+
+
+def indicateur_precision(lst_prediction,lst_label):
+    nbr_pos = lst_prediction.count("positive")
+    nbr_neg = lst_prediction.count("negative")
+    print(f"L'element positive apparait {nbr_pos} fois dans la liste.")
+    print(f"L'element negative apparait {nbr_neg} fois dans la liste.")
+    pourcent = nbr_pos/len(lst_prediction)
+    print(f"il y a {pourcent}% d'element positif")
+    
+    #on trouve 22% de positif et on a 90% de reussite quand on compare au label qui existe
+    compare = []
+    for i in range(len(lst_prediction)):
+        if (lst_prediction[i]==lst_label[i]):
+            compare.append(1)
+        else:
+            compare.append(0)
+    accuracy = compare.count(1)/len(compare)
+    print("accuracy est de :")
+    print(accuracy)
+    nbr_pos_label = lst_label.count("positive")
+    nbr_neg_label = lst_label.count("negative")
+    print(f"L'element positive apparait {nbr_pos_label} fois dans la liste des label.")
+    print(f"L'element negative apparait {nbr_neg_label} fois dans la liste des label.")
+    sleep(10)
+    return accuracy
+
+def indicateur_precision_with_tweet_object(lst_prediction_tweet,lst_label):
+    lst_prediction = []
+    for i in lst_prediction_tweet:
+        lst_prediction.append(i.label)
+    nbr_pos = lst_prediction.count("positive")
+    nbr_neg = lst_prediction.count("negative")
+    print(f"L'element positive apparait {nbr_pos} fois dans la liste.")
+    print(f"L'element negative apparait {nbr_neg} fois dans la liste.")
+    pourcent = nbr_pos/len(lst_prediction)
+    print(f"il y a {pourcent}% d'element positif")
+    
+    #on trouve 22% de positif et on a 90% de reussite quand on compare au label qui existe
+    compare = []
+    for i in range(len(lst_prediction)):
+        if (lst_prediction[i]==lst_label[i]):
+            compare.append(1)
+        else:
+            compare.append(0)
+    accuracy = compare.count(1)/len(compare)
+    print("accuracy est de :")
+    print(accuracy)
+    nbr_pos_label = lst_label.count("positive")
+    nbr_neg_label = lst_label.count("negative")
+    print(f"L'element positive apparait {nbr_pos_label} fois dans la liste des label.")
+    print(f"L'element negative apparait {nbr_neg_label} fois dans la liste des label.")
+    sleep(10)
+    return accuracy
+
 def main():
-    if (os.path.exists("dicodico_essais_train_pos.csv") and os.path.exists("dicodico_essais_train_neg.csv") and os.path.exists("dicodico_essais_corp.csv")):
+    print("start")
+    if True or (os.path.exists("dicodico_essais_train_pos.csv") and os.path.exists("dicodico_essais_train_neg.csv") and os.path.exists("dicodico_essais_corp.csv")):
         train_df = pd.read_csv("./tweets_train.csv", sep=",", header=None, skipinitialspace=True, quotechar='"').values.tolist()
         dev_df = pd.read_csv("./tweets_dev.csv", sep=",", header=None, skipinitialspace=True, quotechar='"').values.tolist()
         test_df = pd.read_csv("./tweets_test.csv", sep=",", header=None, skipinitialspace=True, quotechar='"').values.tolist()
+        print("fin de lecture des fichiers")
         pos,neg = seperate_pos_nega(train_df)
         #print(pos)
         c=1
@@ -399,13 +496,22 @@ def main():
     else:
         
         zr=0
+        pass
+    
+
+    print("fin de l'analyse des textes")
+    sleep(1)
+    print("Debut des calculs")
     a=120
     p_pos = len(pos)/(len(pos)+len(neg))#proba tweet positif parmi ensemble de tweet
     p_neg = len(neg)/(len(pos)+len(neg))#proba tweet negatif parmi ensemble de tweet
     n_corp = (len(pos_words_list)+len(neg_words_list))#nombre total de mot dans le corpus
     p_mot_dic_pos = p_mot(pos_final_sorted_dict,len(pos_words_list))#proba de chaque mot sachant que le label est positif
     p_mot_dic_neg = p_mot(neg_final_sorted_dict,len(neg_words_list))#proba de chaque mot sachant que le label est negatif
-    clear = "\n"*50
+    clear = "\n"*5
+    
+    
+    
     """print(clear)
     print(p_pos)
     print(p_neg)
@@ -413,45 +519,101 @@ def main():
     print("nbr omt")
     print(n_corp)"""
     p_mot_dic=p_mot(corp_tot_final_sorted_dict,n_corp)#proba du mot dans le corpus
-
     proba_train = Proba(p_mot_dic_pos,p_mot_dic_neg,p_mot_dic,p_pos,p_neg)#on rassemble toutes les variables dans un seul objet pour se simplifier la vie
     #print(dev_df)
+    print("find des calculs")
+    sleep(1)
+    print("Lancements du traitements bayesien")
     
+    
+    
+    """
     label_dev,tweet_dev=sep_tweet_label(dev_df)
     prediction = [classification_tweet(x,proba_train) for x in tweet_dev]
-    print(prediction)
-    nbr_pos = prediction.count("positive")
-    nbr_neg = prediction.count("negative")
-    print(f"L'element positive apparait {nbr_pos} fois dans la liste.")
-    print(f"L'element negative apparait {nbr_neg} fois dans la liste.")
-    pourcent = nbr_pos/len(prediction)
-    print(f"il y a {pourcent}% d'element positif")
-    pourcent = pourcent+0.2228
-    print(pourcent)
     """
     label_dev,tweet_dev=sep_tweet_label(test_df)
+    
     prediction = [classification_tweet(x,proba_train) for x in tweet_dev]
     print(prediction)
-    nbr_pos = prediction.count("positive")
-    nbr_neg = prediction.count("negative")
-    print(f"L'element positive apparait {nbr_pos} fois dans la liste.")
-    print(f"L'element negative apparait {nbr_neg} fois dans la liste.")
-    pourcent = nbr_pos/len(prediction)
-    print(f"il y a {pourcent}% d'element positif")
-    """
-    #on trouve 22% de positif et on a 90% de reussite quand on compare au label qui existe
-    compare = []
-    for i in range(len(prediction)):
-        if (prediction[i]==label_dev[i]):
-            compare.append(1)
-        else:
-            compare.append(0)
-    accuracy = compare.count(1)/len(compare)
-    print("accuracy est de :")
-    print(accuracy)
+    indicateur_precision(prediction,label_dev)
+    
     rzse=0
-    pass
+    print(clear)
+
+    #perte de precision, retirer du programme
+    predictionr = [classification_tweet_iteratif_first_time(x,proba_train) for x in tweet_dev]
+    indicateur_precision_with_tweet_object(predictionr,label_dev)
+    print(clear)
+    prediction2 = [classification_tweet_iteratif(x,proba_train) for x in predictionr]
+    indicateur_precision_with_tweet_object(prediction2,label_dev)
+    prediction.clear()
+    prediction = [classification_tweet_iteratif(x,proba_train) for x in prediction2]
+    indicateur_precision_with_tweet_object(prediction,label_dev)
+    a=0
+    return
 
 main()
 #top pour projet 94%
+
+def tente_optimise1(label_lst,tweet_lst,proba_train):
+    """
+    l'idee de cette optimisation est de rechercher quels sont les mots que l'on peut retirer qui monte l'accuracy
+    Cette fonction n'est pas prevue d'etre rapide, la seule chose que l'on attends de cette fonction est qu'elle donne la meilleur liste de mots possible
+    les mots qui sont prioriser sont :
+    les mots qui apparaissent souvent dans un contexte positif et negatif
+    
+    """
+
+    return
+
+
+def class_ponderation():
+    """
+    corrige le fait que il y a 4* plus de tweet negatif que de positif
+    """
+    return
+
+def Term_Frequency_Inverse_Document_Frequency():
+    """
+    Au lieu d’utiliser la frequence brute des mots, 
+    on peut utiliser TF-IDF (Term Frequency - Inverse Document Frequency) pour donner plus d’importance aux mots distinctifs.
+    """
+    return
+
+def change_data_train():
+    """
+    Oversampling or undersampling
+    """
+    return
+
+
+def lemmatize_protocol():
+    """
+    This fonction has for goal to lemmatize each word in the corpus
+    """
+
+    return
+
+def correcteur_ortho():
+    """
+    Cette fonction est un correcteur orthographique, parceque orthographe et Twitter sont les meilleurs amis du monde
+    """
+
+    return
+
+def compute_alpha_per_word():
+    """
+    This fonction compute an alpha for each word, in order to implement the  Laplace smoothing
+    cf https://en.wikipedia.org/wiki/Additive_smoothing
+    """
+
+    return
+
+def compute_coef_per_word():
+    """
+    This fonction aim to compute a cofficient that will be applied at the probability of each word
+    a word in the positive context is consider different to the same word but in the negative context
+    """
+
+    return
 
