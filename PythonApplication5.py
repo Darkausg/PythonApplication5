@@ -1,8 +1,12 @@
+# -*- coding: utf-8 -*-
+
 from time import sleep
 import pandas as pd
 import os
 import re
+import sys
 
+sys.stdout.reconfigure(encoding='utf-8')    
 
 
 class Proba:
@@ -165,7 +169,7 @@ emojis_clavier = [
     # Surprise et choc
     ":O", ":-O", ":o", ":-o", "O_O", "o_O", "O_o", "o_o", "(o_o)", "0_0",  
    
-    # Clins d'œil et taquineries
+    # Clins d'oeil et taquineries
     ";)", ";-)", ";P", ";-P", ";D", ";-D",  
    
     # Expressions diverses
@@ -441,7 +445,73 @@ def indicateur_precision(lst_prediction,lst_label):
     print(f"L'element positive apparait {nbr_pos_label} fois dans la liste des label.")
     print(f"L'element negative apparait {nbr_neg_label} fois dans la liste des label.")
     sleep(10)
+    matrice_confusion(lst_label, lst_prediction)
+    sleep(10)
     return accuracy
+
+
+def matrice_confusion(y_true, y_pred):
+    """
+    code genere par IA, a reecrire
+    """
+    # Initialisation des compteurs
+    TP = FP = FN = TN = 0  
+
+    """
+    calcul de la matrice d'occurence
+    """
+    # Parcours des vraies valeurs et des prédictions
+    for vrai, pred in zip(y_true, y_pred):
+        if vrai == "positive" and pred == "positive":
+            TP += 1  # Vrai Positif
+        elif vrai == "negative" and pred == "positive":
+            FP += 1  # Faux Positif
+        elif vrai == "positive" and pred == "negative":
+            FN += 1  # Faux Négatif
+        elif vrai == "negative" and pred == "negative":
+            TN += 1  # Vrai Négatif
+    """
+    calcul precision positif
+    """
+    preci_TP = preci_FP = 0
+    for vrai, pred in zip(y_true, y_pred):
+        if pred == "positive":
+            if vrai == "positive":
+                preci_TP += 1  # Vrai Positif
+            else:
+                preci_FP += 1  # Faux Positif
+
+    # Éviter la division par zéro
+    if preci_TP + preci_FP == 0:
+        return 0.0  
+    # Calcul de la précision
+    precision_pos = preci_TP / (preci_TP + preci_FP)
+
+    """
+    calcul precision négatif
+    """
+    preci_TN = preci_FN = 0
+    for vrai, pred in zip(y_true, y_pred):
+        if pred == "negative":
+            if vrai == "negative":
+                preci_TN += 1  # Vrai Positif
+            else:
+                preci_FN += 1  # Faux Positif
+
+    # Éviter la division par zéro
+    if preci_TN + preci_FN == 0:
+        return 0.0  
+    # Calcul de la précision
+    precision_neg = preci_TN / (preci_TN + preci_FN)
+    
+    print(f"Précision des prédictions positives : {precision_pos:.2f}")
+    print(f"Précision des prédictions négatives : {precision_neg:.2f}")
+    print("\n"*5)
+    # Affichage de la matrice sous forme de tableau
+    print("Matrice de Confusion :")
+    print("               Prédit Negative   Prédit Positive")
+    print(f"Réel Negative    {TN:<10}       {FP:<10}")
+    print(f"Réel Positive    {FN:<10}       {TP:<10}")
 
 def indicateur_precision_with_tweet_object(lst_prediction_tweet,lst_label):
     lst_prediction = []
@@ -575,8 +645,8 @@ def class_ponderation():
 
 def Term_Frequency_Inverse_Document_Frequency():
     """
-    Au lieu d’utiliser la frequence brute des mots, 
-    on peut utiliser TF-IDF (Term Frequency - Inverse Document Frequency) pour donner plus d’importance aux mots distinctifs.
+    Au lieu d'utiliser la frequence brute des mots, 
+    on peut utiliser TF-IDF (Term Frequency - Inverse Document Frequency) pour donner plus d'importance aux mots distinctifs.
     """
     return
 
