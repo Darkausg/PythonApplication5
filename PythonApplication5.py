@@ -10,41 +10,88 @@ from time import sleep
 
 
 class Data:
-    def __init__(self, n_message_pos, n_message_neg, count_occurence_m_pos, count_occurence_m_neg):
+    """
+    Classe représentant un modèle de données pour l'analyse des messages en fonction de leur polarité (positif ou négatif).
+    Elle calcule les probabilités conditionnelles pour un modèle de Naive Bayes en fonction du nombre de messages
+    positifs et négatifs, et de l'occurrence des mots dans ces messages.
+
+    Attributs :
+    - n_pos : int
+        Le nombre de messages positifs dans le corpus d'entraînement.
+    - n_neg : int
+        Le nombre de messages négatifs dans le corpus d'entraînement.
+    - prior_pos : float
+        La probabilité a priori d'un message positif dans le corpus.
+    - prior_neg : float
+        La probabilité a priori d'un message négatif dans le corpus.
+    - count_m_pos : Dict[str, int]
+        Dictionnaire représentant le nombre d'occurrences de chaque mot dans les messages positifs.
+    - count_m_neg : Dict[str, int]
+        Dictionnaire représentant le nombre d'occurrences de chaque mot dans les messages négatifs.
+    - nb_pos_word : int
+        Le nombre total de mots dans les messages positifs.
+    - nb_neg_word : int
+        Le nombre total de mots dans les messages négatifs.
+    - p_m_sachant_pos : Dict[str, float]
+        Dictionnaire représentant la probabilité de chaque mot étant donné que le message est positif.
+    - p_m_sachant_neg : Dict[str, float]
+        Dictionnaire représentant la probabilité de chaque mot étant donné que le message est négatif.
+    - vocab : set
+        L'ensemble des mots uniques présents dans l'ensemble du corpus (positif et négatif), utilisé pour le lissage de Laplace.
+
+    Méthodes :
+    - __init__(self, n_message_pos: int, n_message_neg: int, 
+               count_occurence_m_pos: Dict[str, int], count_occurence_m_neg: Dict[str, int])
+        Initialise les valeurs nécessaires pour calculer les probabilités conditionnelles et les prioris.
+    """
+
+    def __init__(self, n_message_pos: int, n_message_neg: int, 
+                 count_occurence_m_pos: Dict[str, int], count_occurence_m_neg: Dict[str, int]):
+        """
+        Initialise un objet Data qui contient les informations nécessaires pour le calcul du modèle Naive Bayes.
+
+        Args:
+            n_message_pos (int) : Nombre de messages positifs dans le corpus d'entraînement.
+            n_message_neg (int) : Nombre de messages négatifs dans le corpus d'entraînement.
+            count_occurence_m_pos (Dict[str, int]) : Dictionnaire avec les mots comme clés et les occurrences de chaque mot 
+                                                     dans les messages positifs comme valeurs.
+            count_occurence_m_neg (Dict[str, int]) : Dictionnaire avec les mots comme clés et les occurrences de chaque mot 
+                                                     dans les messages négatifs comme valeurs.
+        """
+
         ### Valeur pratique ###
+        # L'ensemble des mots uniques dans le corpus (positif et négatif)
+        self.vocab = set(count_occurence_m_pos.keys()).union(set(count_occurence_m_neg.keys()))
 
-        #l'ensemble des mots uniques, sera utilisé pour le lissage de Laplace
-        self.vocab = ( set(count_occurence_m_pos.keys()).union(set(count_occurence_m_neg.keys())) )
+        ### Valeur pour les proba pos ###
 
-        #
-
-        ###Valeur pour les proba pos ###
-
-        # le nombre de message positif dans le corpus d'entraînement
-        self.n_pos = n_message_pos
-        #le prior positif
-        self.prior_pos = n_message_pos / ( n_message_pos + n_message_neg )
-        #le nombre d'occurence de chaque mots dans le corpus d'entraînement, sachant que le contexte (classe) est positif
-        self.count_m_pos = count_occurence_m_pos
-        #le nombre de mots dans les tweets positif
-        self.nb_pos_word =  sum(count_occurence_m_pos.values())
-        #la probabilité de chaque mot dans le corpus d'entraînement, sachant que le contexte (classe) est positif
-        self.p_m_sachant_pos = {words : ( count_occurence_m_pos[words] / self.nb_pos_word ) for words in count_occurence_m_pos}
+        # Le nombre de messages positifs
+        self.n_pos: int = n_message_pos
+        # Le prior positif : probabilité d'un message positif
+        self.prior_pos: float = n_message_pos / ( n_message_pos + n_message_neg )
+        # Dictionnaire des occurrences des mots dans les messages positifs
+        self.count_m_pos: Dict[str, int] = count_occurence_m_pos
+        # Nombre total de mots dans les messages positifs
+        self.nb_pos_word: int = sum( count_occurence_m_pos.values() )
+        # Dictionnaire des probabilités de chaque mot étant donné que le message est positif
+        self.p_m_sachant_pos: Dict[str, float] = {
+            words: ( count_occurence_m_pos[words] / self.nb_pos_word ) for words in count_occurence_m_pos
+        }
 
         ### Valeurs pour les probas neg ###
 
-        # le nombre de message négatif dans le corpus d'entraînement
-        self.n_neg = n_message_neg
-        #le nombre d'occurence de chaque mots dans le corpus d'entraînement, sachant que le contexte (classe) est négatif
-        self.count_m_neg = count_occurence_m_neg
-        #le prior négatif
-        self.prior_neg = self.n_neg / (self.n_pos + self.n_neg)
-        #e nombre de mots dans les tweets négatif
-        self.nb_neg_word =  sum(count_occurence_m_neg.values())
-        #la probabilité de chaque mot dans le corpus d'entraînement, sachant que le contexte (classe) est négatif
-        self.p_m_sachant_neg = {words : ( count_occurence_m_neg[words] / self.nb_neg_word ) for words in count_occurence_m_neg}
-        
-
+        # Le nombre de messages négatifs
+        self.n_neg: int = n_message_neg
+        # Le prior négatif : probabilité d'un message négatif
+        self.prior_neg: float = n_message_neg / ( n_message_pos + n_message_neg )
+        # Dictionnaire des occurrences des mots dans les messages négatifs
+        self.count_m_neg: Dict[str, int] = count_occurence_m_neg
+        # Nombre total de mots dans les messages négatifs
+        self.nb_neg_word: int = sum( count_occurence_m_neg.values() )
+        # Dictionnaire des probabilités de chaque mot étant donné que le message est négatif
+        self.p_m_sachant_neg: Dict[str, float] = {
+            words: ( count_occurence_m_neg[words] / self.nb_neg_word ) for words in count_occurence_m_neg
+        }
         pass
 
 
@@ -59,8 +106,27 @@ class Weight:
 
     pass
 
-class Tableau :
-    def __innit__(self):
+class Tableau:
+    """
+    Classe `Tableau` utilisée pour stocker des listes de mots fonctionnels et de smileys,
+    afin de faciliter le prétraitement des messages (ex. pour une analyse de sentiment ou un classifieur).
+
+    Attributs :
+    ----------
+    - function_word_generated : List[str]
+        Liste de mots fonctionnels (mots vides) chargés depuis un fichier texte si celui-ci existe.
+    - smiley : List[str]
+        Liste prédéfinie de chaînes représentant des émojis et émoticônes textuels pour la détection d'émotions.
+    - function_word_base : List[str]
+        Liste étendue et manuellement enrichie de mots fonctionnels (articles, conjonctions, prépositions, pronoms, modaux, etc.),
+        utilisée comme base pour le nettoyage ou la vectorisation du texte.
+    """
+
+    def __init__(self):
+        """
+        Initialise un objet `Tableau`, en chargeant une liste de mots vides depuis un fichier
+        si celui-ci existe, et en définissant des listes de smileys et de mots fonctionnels.
+        """
         if ( os.path.exists("list_of_stops_words.txt") ):
             self.function_word_generated = read_simple_list_from_txt("stops_words")
         else:
@@ -167,18 +233,10 @@ def main():
 
     print("on génère le jeu d'entraînement")
 
-    pos,neg = seperate_pos_nega(train_df)
+    proba_train = generate_training_data(train_df, caution)
 
-    conca_pos = conca_str_in_list(pos)
-    conca_neg = conca_str_in_list(neg)
+    print("le jeu d'entraînement a fini d'être généré")
 
-    pos_words_list = [ tokenize(x) for x in ( conca_pos.split() ) ]
-    neg_words_list = [ tokenize(x) for x in ( conca_neg.split() ) ]
-
-    pos_final_sorted_dict = liste_occurrences(pos_words_list,caution)
-    neg_final_sorted_dict = liste_occurrences(neg_words_list,caution)
-
-    proba_train = Data()
     return
 
 
@@ -262,6 +320,16 @@ def read_dico_from_csv(file_name):
 #######################################################################
 
 
+def seperate_pos_nega(liste_tweet):
+    train_pos = []
+    train_neg =[]
+    for i in liste_tweet:
+        if i[0] =="positive":
+            train_pos.append(i[1])
+        else:
+            train_neg.append(i[1])
+    return train_pos,train_neg
+
 def conca_str_in_list(lst):
     conca_lst = " ".join(lst)
     return conca_lst
@@ -294,16 +362,6 @@ def sep_tweet_label(liste_tweet):
         tweet.append(i[1])
     return label,tweet
 
-
-def seperate_pos_nega(liste_tweet):
-    train_pos = []
-    train_neg =[]
-    for i in liste_tweet:
-        if i[0] =="positive":
-            train_pos.append(i[1])
-        else:
-            train_neg.append(i[1])
-    return train_pos,train_neg
 
 
 def lemmatize(word):
@@ -345,6 +403,20 @@ def tokenize(ori_words,words_to_remove,emoji):
         return 
 
     return token_treated
+
+def generate_training_data(string: str, caution: Tableau):
+
+    pos,neg = seperate_pos_nega(string)
+
+    conca_pos = conca_str_in_list(pos)
+    conca_neg = conca_str_in_list(neg)
+
+    pos_words_list = [ tokenize(x) for x in ( conca_pos.split() ) ]
+    neg_words_list = [ tokenize(x) for x in ( conca_neg.split() ) ]
+
+    pos_final_sorted_dict = liste_occurrences(pos_words_list,caution)
+    neg_final_sorted_dict = liste_occurrences(neg_words_list,caution)
+    return ( Data(len(pos), len(neg), pos_final_sorted_dict, neg_final_sorted_dict) )
 
 
 def compute_alpha_per_word(dataSet: Data, weight: Weight, base_alpha=1, rare_boost=3, freq_penalty=0.5):
