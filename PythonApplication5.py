@@ -244,6 +244,11 @@ class Tableau:
     #retiré
     #"talk","called",
 
+    "too","sent","airlines","boarding","baggage","ua","attendant","planes","pilots","company","charlotte","american","flyfi","speak","sit","more","even",
+    #"flighted","southwest","flightr",
+
+    "delay","travel","class","half","different",
+
     # Articles
     "a", "an", "the",
     
@@ -385,7 +390,7 @@ class ProgressWindow(QWidget):
 
 
 # ----------------------------
-# FFonction principale
+# Fonction principale
 def main():
 
     #on charge les jeu de données
@@ -397,6 +402,14 @@ def main():
 
     caution = Tableau()
 
+
+    print("on génère le jeu d'entraînement")
+
+    proba_train = generate_training_data(train_df, caution)
+    save_word_stats_to_csv(proba_train, filename= "info_Data_train.csv")#utilisé pour déterminer quels sont les mots à retirer (stop - words) pour function_word_base
+
+    print("le jeu d'entraînement a fini d'être généré")
+    
     ##############################################################################################
     ##############################################################################################
     ##############################################################################################
@@ -405,15 +418,17 @@ def main():
     ##############################################################################################
     ##############################################################################################
 
-    #test le rebalançage du jeu de donnée d'entraîne^ment pour voir si on a de meilleur résultat
-    if False: #testé les 400000 premières seed a pris 12h, et quasiment toute la capacité du processeur pendant ces 12h
-
+    #test le rebalançage du jeu de donnée d'entraînement pour voir si on a de meilleur résultat
+    if False: #testé les 400000 premières seed prends environ 12h
         min_seed = 0
-        max_seed = 400000
-        seed = list(range(min_seed, max_seed))
-        #seed.append(55264) #insert the value of the best seed in the append
-        num_processes = 10
-        seeds_per_process = len(seed) // num_processes
+        max_seed = 1000
+        num_processes = 14
+        seed = list(
+            range( min_seed, max_seed + num_processes - ( (max_seed-min_seed) % num_processes) ) # pour s'assurer que toutes les seeds sont testé
+            )
+        
+        seeds_per_process = len(seed) // num_processes # si len(seed) % num_processes était différnt de 0, alors certaine seeds ne serait pas traité
+        type_of_balancing = "oversample"
 
         manager = Manager()
         max_result = manager.dict({"seed": 0, "value": -1.5})
@@ -422,8 +437,7 @@ def main():
         lock = Lock()
         timing_info = manager.dict({"total_time": 0.0, "count": 0})
 
-        """
-        interface graphique pour visualiser le progrès
+        #interface graphique pour visualiser le progrès
 
         app = QApplication(sys.argv)
 
@@ -431,17 +445,53 @@ def main():
             len(seed), tested_seeds_counter, update_queue, timing_info, max_result
         )
         window.show()
-        """
-    
 
         p = multiprocessing.Process(target=start_processes, args=(
             seed, max_result, lock, train_df, dev_df, caution,
             tested_seeds_counter, update_queue, timing_info,
-            num_processes, seeds_per_process
-        ))
+            num_processes, seeds_per_process),
+            kwargs={"method_of_balancing" : type_of_balancing})
         p.start()
-        #sys.exit(app.exec_())
+        sys.exit(app.exec_())
+        pass
     
+
+    #on essaie de trouver les meilleurs non-zero, voir README pour plus de détail sur la méthode qui a été suivie
+    if False:
+        non_zero_list = [(k * 1e-9) for k in range(1, 100000)]
+        num_processes = 5
+        start_processes2(non_zero_list, dev_df, proba_train, caution, num_processes)
+        pass
+
+    #on essaie de trouver les meilleurs stops-words
+    if ( not ( os.path.exists("list_of_stops_words.txt") ) ):#inutile de rechercher les meilleurs stops words si ils ont déjà été calculé
+
+        #on s'assure que proba_train.vocab est divisble en 13 morceaux
+        proba_train.vocab.remove("")
+        num_process = 13
+
+        vocab_list = list(proba_train.vocab)
+        vocab_chunks = split_list(vocab_list, num_process)
+        manager = multiprocessing.Manager()
+        shared_final_words = manager.list()
+        lock = manager.Lock()
+        processes = []
+
+        for chunk in vocab_chunks:
+            p = multiprocessing.Process(
+                target=find_best_stop_word,
+                args=(chunk, train_df, dev_df, shared_final_words, lock)
+            )
+            processes.append(p)
+            p.start()
+
+        for p in processes:
+            p.join()
+
+        send_simple_list_to_txt(list(shared_final_words), "stops_words")#on sauvegarde les stops-words dans un fichier texte
+        pass
+
+
     ####################################################################################################
     ####################################################################################################
     ####################################################################################################
@@ -449,70 +499,6 @@ def main():
     ####################################################################################################
     ####################################################################################################
     ####################################################################################################
-
-        
-    #utilisé en tant que breakpoint
-    zeta = 100 
-
-    #affiche le résultat du balançage qui a été fait au-dessus, le meilleur résultat pour la méthod oversample est 55264, pour des seed entre 0 et 400000, mais est moins précis que le jeu de données standard
-    #proba_train_recalibrated = generate_training_data_with_calibrage(train_df, caution,seed = max_result[0])
-    #a = naive_bayesian_prediction(test_df, proba_train_recalibrated, caution)
-
-    print("on génère le jeu d'entraînement")
-
-    proba_train = generate_training_data(train_df, caution)
-
-    print("le jeu d'entraînement a fini d'être généré")
-
-    a = naive_bayesian_prediction(dev_df, proba_train, caution)
-    
-    #on essaye de trouver de meilleur stop-word
-    if False:
-        caution0 = Tableau()
-        print("on essye de trouver les best stop words")
-        #insérer ce code dans les threads somehow, mais ce code permets une meilleurs précisions que la liste manuel
-        n_max=0
-        all_max = 0
-        seuil = 1700
-        old_accuracy = new_accur = n = 0
-        check = True
-        while ( ( ( old_accuracy <= new_accur ) or ( n <= seuil )  ) and False ) :
-
-            old_accuracy = new_accur
-            #crée le jeu de donée qui sera utilisé pour les prédictions dans cette itération de la boucle
-            proba_theori_best_stop_words = generate_training_data_with_best_stop_word(n,train_df,caution0)
-
-            if check:
-                save_word_stats_to_csv(proba_theori_best_stop_words)
-                check = False
-                pass
-
-            print(f"{n}\n\n")
-            if True:
-                print("éssais sur le dev set")
-                new_accur = naive_bayesian_prediction(dev_df, proba_theori_best_stop_words, caution0, mode = 2)
-                pass
-            else:
-                print("éssais sur le test set")
-                new_accur = naive_bayesian_prediction(test_df, proba_theori_best_stop_words, caution0, mode = 2)
-                pass
-            n += 10
-            caution0.function_word_generated.clear()
-            caution0.function_word_generated = caution0.function_word_generated + stop_words
-            if ( new_accur >= all_max ):
-                all_max = new_accur
-                n_max = n
-                pass
-            pass
-
-        send_simple_list_to_txt(get_least_significant_words( n_max, generate_training_data(train_df, caution0, caution_type = False) ),"stops_words")
-        print("best stop word")
-
-        print("new stop words on dev")
-        new_accur = naive_bayesian_prediction(dev_df, generate_training_data_using_best_stop_word(train_df,caution0), caution0, mode = 2)
-        print("new stop words on test")
-        new_accur = naive_bayesian_prediction(test_df, generate_training_data_using_best_stop_word(train_df,caution0), caution0, mode = 2)
-        pass
     
     print("\n\n\n\n\n")
     print("éssais sur le dev set")
@@ -571,35 +557,6 @@ def read_simple_list_from_txt(file_name):
         return []
     pass
 
-
-def send_dico_to_csv(dic,file_name):#fonction non utilisé
-    try:
-        with open("dico_" + file_name + ".csv","w",newline="") as f:
-            for i in dic:
-                f.write(i + "," + str(dic[i]) + "\n")
-    except Exception as e:
-        print(f"Une erreur s'est produite : {e}")
-    pass
-
-def read_dico_from_csv(file_name):#fonction non utilisé
-    dico={}
-    try:
-        with open("dico_" + file_name + ".csv", 'r') as f:
-            content = f.readlines()
-        # Supprime les caractères de fin de ligne (\n)
-        lst = [line.strip() for line in content]
-        #on extrait le dico
-        for i in lst:
-            dico[i.split(",")[0]] = float(i.split(",")[1])
-            pass
-        return dico
-    except FileNotFoundError:
-        print(f"Le fichier {file_name} est introuvable.")
-        return []
-    except Exception as e:
-        print(f"Une erreur s'est produite : {e}")
-        return []
-    pass
 
 
 
@@ -726,7 +683,7 @@ def sep_tweet_label(tweets_with_labels: list[list[str]]) -> tuple[list[str], lis
 
 
 
-def lemmatize(word): #à retravailler, impact sur la précision moyen, pas grand, tends vers perte de précision
+def lemmatize(word: str) -> str: #à retravailler, impact sur la précision moyen, pas grand, tends vers perte de précision
     #disabling the fonction because it lower the accuracy
     if True:
         return word
@@ -814,7 +771,7 @@ def tokenize(original_word: str, tableau: Tableau, use_default_caution: bool = T
         return lemmatize(token)
 
     # Autres cas : nettoyage du mot (suppression des caractères non alphabétiques)
-    token_treated = re.sub(r'[^a-z]', '', token)
+    token_treated = re.sub(r"[^a-z]", '', token)
 
     # Nouveau filtrage après nettoyage
     if use_default_caution and token in tableau.function_word_base:
@@ -853,21 +810,21 @@ def generate_training_data(string: list[str], caution: Tableau, caution_type=Tru
     conca_neg = conca_str_in_list(neg)
 
     # Découpage en mots + traitement via la fonction tokenize (nettoyage, filtrage, lemmatisation)
-    pos_words_list = [ tokenize( word, caution, type_of_caution_is_default=caution_type ) for word in conca_pos.split() ]
-    neg_words_list = [ tokenize( word, caution, type_of_caution_is_default=caution_type ) for word in conca_neg.split() ]
+    pos_words_list = [ tokenize( word, caution, use_default_caution=caution_type ) for word in conca_pos.split() ]
+    neg_words_list = [ tokenize( word, caution, use_default_caution=caution_type ) for word in conca_neg.split() ]
 
     # Calcul des occurrences de chaque mot dans les deux listes
-    pos_final_sorted_dict = liste_occurrences(pos_words_list, caution)
-    neg_final_sorted_dict = liste_occurrences(neg_words_list, caution)
+    pos_final_sorted_dict = liste_occurrences(pos_words_list, caution, use_default_caution = caution_type)
+    neg_final_sorted_dict = liste_occurrences(neg_words_list, caution, use_default_caution = caution_type)
 
     # Retour d'un objet Data à partir des informations fournies qui ont été traité
     return Data(len(pos), len(neg), pos_final_sorted_dict, neg_final_sorted_dict)
 
-def naive_bayesian_prediction(data_set_to_analyse: list[list[str]], data_proba: Data, caution: Tableau, mode=1) -> float:
+def naive_bayesian_prediction(data_set_to_analyse: list[list[str]], data_proba: Data, caution: Tableau, mode=1,verbose = True) -> float:
     """
     Effectue une prédiction bayésienne sur un ensemble de tweets étiquetés, 
     en utilisant différentes variantes du modèle naïf bayésien.
-
+    mode = 3 et mode = 4 ne fonctionne pas
     Args:
         data_set_to_analyse (list[list[str]]): Liste de tweets avec leurs labels, sous la forme [[label, texte], ...].
         data_proba (Data): Objet contenant les probabilités ou les occurrences pour chaque classe (positif/négatif).
@@ -877,6 +834,7 @@ def naive_bayesian_prediction(data_set_to_analyse: list[list[str]], data_proba: 
             - 2 : utilise `classification_tweet_basique` avec `function_word_generated`
             - 3 : utilise `classification` avec `function_word_base`
             - 4 : utilise `classification` avec `function_word_generated`
+        verbose (Bool) ; affiche la matrice d'occurence si verbose = True
 
     Returns:
         float: Accuracy du modèle sur le jeu de données fourni.
@@ -889,23 +847,23 @@ def naive_bayesian_prediction(data_set_to_analyse: list[list[str]], data_proba: 
         case 1:
             # Classification simple avec les stop-words de base
             prediction = [classification_tweet_basique(x, data_proba, caution) for x in tweet]
-            accuracy = matrice_confusion(label, prediction)
+            accuracy = matrice_confusion(label, prediction,verbose = verbose)
 
         case 2:
             # Classification simple avec les stop-words générés automatiquement
             prediction = [classification_tweet_basique(x, data_proba, caution, caution_type=False) for x in tweet]
-            accuracy = matrice_confusion(label, prediction)
-
+            accuracy = matrice_confusion(label, prediction,verbose = verbose)
+            """
         case 3:
             # Classification avancée avec les stop-words de base
             prediction = [classification(x, data_proba, caution) for x in tweet]
-            accuracy = matrice_confusion(label, prediction)
+            accuracy = matrice_confusion(label, prediction,verbose = verbose)
 
         case 4:
             # Classification avancée avec les stop-words générés automatiquement
             prediction = [classification(x, data_proba, caution, caution_type=False) for x in tweet]
-            accuracy = matrice_confusion(label, prediction)
-
+            accuracy = matrice_confusion(label, prediction,verbose = verbose)
+            """
     return accuracy
 
 def compute_alpha_per_word(dataSet: Data, weight: Weight, base_alpha=1, rare_boost=4, freq_penalty=0.3):
@@ -950,9 +908,12 @@ def compute_alpha_per_word(dataSet: Data, weight: Weight, base_alpha=1, rare_boo
 
     return 
 
-def classification_tweet_basique(string: str, data_proba: Data, caution: Tableau, caution_type=True) -> str:
+
+
+
+def classification_tweet_basique(string: str, data_proba: Data, caution: Tableau, caution_type=True, non_zero_para = 9.63e-6 ) -> str:
     """
-    Classifie un tweet en "positive" ou "negative" en utilisant un modèle Naïf Bayésien sans lissage de Laplace.
+    Classifie un tweet en "positive" ou "negative" en utilisant un modèle Naïf Bayésien.
 
     Args:
         string (str): Le tweet à analyser.
@@ -969,42 +930,48 @@ def classification_tweet_basique(string: str, data_proba: Data, caution: Tableau
     p_prediction_neg = math.log(data_proba.prior_neg)
 
     # Tokenisation du tweet : nettoyage, filtrage, lemmatisation
-    tweet = [ tokenize( word, caution, type_of_caution_is_default = caution_type ) for word in string.split()]
+    tweet = [ tokenize( word, caution, use_default_caution = caution_type ) for word in string.split()]
 
-    # Petites valeurs pour éviter log(0)
-    non_zero = 5.25e-6         # utilisée pour des mots absents dans les dictionnaires
-    non_zero_absent = 1e-7     # au cas où on veut différencier le cas absent dans les deux dictionnaires et absent dans un seul dictionnaire
+    # Petites valeurs pour éviter log(0) ou log(1) pour tous les mots dont on a pas P(m|contexte)
+    non_zero =non_zero_para  #non_zero_para        
+    non_zero_empty_word_pos = 9.55e-6
+    non_zero_empty_word_neg = 1.022e-5
+    non_zero_absent_vocab_pos = 9.63e-6
+    non_zero_absent_vocab_neg = 9.59e-6
+    non_zero_pos_absent =  9.62e-6    # mots absent dans 1 dictionnaires
+    non_zero_neg_absent = 6.999e-5
 
-    for i in tweet:
-        # Mot absent du vocabulaire général
-        if i not in data_proba.vocab:
-            p_prediction_pos += math.log(non_zero)
-            p_prediction_neg += math.log(non_zero)
-            continue
+    for word in tweet:
 
         # Mot vide (résultat possible de nettoyage)
-        if i == "" or i == None:
-            p_prediction_pos += math.log(non_zero)
-            p_prediction_neg += math.log(non_zero)
+        if word == "" or word == None:
+            p_prediction_pos += math.log(non_zero_empty_word_pos)
+            p_prediction_neg += math.log(non_zero_empty_word_neg)
+            continue
+
+        # Mot absent du vocabulaire général
+        if word not in data_proba.vocab:
+            p_prediction_pos += math.log(non_zero_absent_vocab_pos)
+            p_prediction_neg += math.log(non_zero_absent_vocab_neg)
             continue
 
         # Ajout de la log probabilité conditionnelle pour POS
-        if i in data_proba.p_m_sachant_pos:
-            p_prediction_pos += math.log(data_proba.p_m_sachant_pos[i])
+        if word in data_proba.p_m_sachant_pos:
+            p_prediction_pos += math.log(data_proba.p_m_sachant_pos[word])
         else:
-            p_prediction_pos += math.log(non_zero)
+            p_prediction_pos += math.log(non_zero_pos_absent)
 
         # Ajout de la log probabilité conditionnelle pour NEG
-        if i in data_proba.p_m_sachant_neg:
-            p_prediction_neg += math.log(data_proba.p_m_sachant_neg[i])
+        if word in data_proba.p_m_sachant_neg:
+            p_prediction_neg += math.log(data_proba.p_m_sachant_neg[word])
         else:
-            p_prediction_neg += math.log(non_zero)
+            p_prediction_neg += math.log(non_zero_neg_absent)
 
         # Debugging optionnel, normalement, cette condition ne devrait jamais être vraie
-        if False and ((p_prediction_neg > 1) or (p_prediction_pos > 1)):
+        if False and ((p_prediction_neg > 0) or (p_prediction_pos > 0)):
             print("\nERROR\n" * 10)
             print(string)
-            print(f"p_prediction_neg = {p_prediction_neg} et p_prediction_pos = {p_prediction_pos} et le mot analysé est {i}")
+            print(f"p_prediction_neg = {p_prediction_neg} et p_prediction_pos = {p_prediction_pos} et le mot analysé est {word}")
    
     if (p_prediction_pos > p_prediction_neg) :        #proba pos > prob neg
         return "positive"
@@ -1038,7 +1005,7 @@ def classification(string: str, data_proba: Data, caution: Tableau, caution_type
     p_prediction_neg = data_proba.prior_neg
 
     # Tokenisation du tweet
-    tweet_tokens = [ tokenize( word, caution, type_of_caution_is_default = caution_type ) for word in string.split()]
+    tweet_tokens = [ tokenize( word, caution, use_default_caution = caution_type ) for word in string.split()]
 
     for word in tweet_tokens:
         # Lissage alpha spécifique au mot (défaut = 1.0 si absent)
@@ -1103,7 +1070,7 @@ def matrice_confusion(lst_correct_label: list[str], lst_prediction: list[str], v
             else: # lst_correct_label[i] == "positive" and lst_prediction[i] == "negative"
                 false_negative += 1  # Faux Négatif
 
-    #on évite les divisions par zéro
+    #on évite les divisions par zéro, et oui il y a eu des cas avec division par zéro lors des tests
     if ( ( true_positif + false_positif ) == 0 ) or ( ( true_negative + false_negative ) == 0 ):
         if verbose:
             print("               Prédit Negative   Prédit Positive")
@@ -1159,8 +1126,8 @@ def generate_training_data_with_calibrage(string: str, caution: Tableau, random_
     conca_neg = conca_str_in_list(neg)
 
     # Tokenisation des tweets (suppression des mots inutiles, liens, chiffres, etc.)
-    pos_words_list = [tokenize(x, caution, type_of_caution_is_default=caution_type) for x in conca_pos.split()]
-    neg_words_list = [tokenize(x, caution, type_of_caution_is_default=caution_type) for x in conca_neg.split()]
+    pos_words_list = [tokenize(x, caution, use_default_caution=caution_type) for x in conca_pos.split()]
+    neg_words_list = [tokenize(x, caution, use_default_caution=caution_type) for x in conca_neg.split()]
 
     # Comptage des occurrences de mots dans les tweets positifs et négatifs
     pos_words_occurence = liste_occurrences(pos_words_list, caution)
@@ -1169,7 +1136,28 @@ def generate_training_data_with_calibrage(string: str, caution: Tableau, random_
     # Création de l'objet contenant les données préparées pour le modèle bayésien
     return Data(len(pos), len(neg), pos_words_occurence, neg_words_occurence)
 
-
+#
+#
+##
+#
+#"
+#
+#
+#
+#
+#
+#
+#
+#
+#Rédiger la doc pour cette fonction
+#
+#
+#
+#
+#
+#
+#
+#
 def rebalance_dataset(data: list[str, str], method='oversample', seed=40):
     """
     data (list of tuples): [(label, text), ...]
@@ -1258,8 +1246,8 @@ def get_least_significant_words(n: int,
 
             # Comptage des documents où le mot apparaît
             doc_count = sum([
-                1 if word in data.count_m_pos else 0,
-                1 if word in data.count_m_neg else 0
+                data.count_m_pos[word] if word in data.count_m_pos else 0,
+                 data.count_m_neg[word] if word in data.count_m_neg else 0
             ])
 
             # IDF : Importance inverse du mot dans le corpus
@@ -1278,7 +1266,28 @@ def get_least_significant_words(n: int,
 
     return least_significant_words
 
-
+#
+#
+##
+#
+#"
+#
+#
+#
+#
+#
+#
+#
+#
+#Rédiger la doc pour cette fonction
+#
+#
+#
+#
+#
+#
+#
+#
 
 def compute_tfidf(data):
     """Calcule les scores TF-IDF pour chaque mot dans le corpus."""
@@ -1288,11 +1297,36 @@ def compute_tfidf(data):
     for word in data.vocab:
         tf_pos = data.p_m_sachant_pos.get(word, 0)
         tf_neg = data.p_m_sachant_neg.get(word, 0)
-        doc_count = sum([1 if word in data.count_m_pos else 0, 1 if word in data.count_m_neg else 0])
+        doc_count = sum([data.count_m_pos[word] if word in data.count_m_pos else 0, data.count_m_neg[word] if word in data.count_m_neg else 0])
         idf = math.log((total_docs) / (doc_count + 1))
         tfidf_scores[word] = (tf_pos + tf_neg) * idf
 
     return tfidf_scores
+
+
+#
+#
+##
+#
+#"
+#
+#
+#
+#
+#
+#
+#
+#
+#Rédiger la doc pour cette fonction
+#
+#
+#
+#
+#
+#
+#
+#
+
 
 def save_word_stats_to_csv(data: Data, filename="word_statistics.csv"):
     """Génère un fichier CSV formaté avec toutes les données jugées utiles pour l'éléboration des stops-words
@@ -1307,7 +1341,7 @@ def save_word_stats_to_csv(data: Data, filename="word_statistics.csv"):
         for word in data.vocab:
             prob_pos = data.p_m_sachant_pos.get(word, 0)
             prob_neg = data.p_m_sachant_neg.get(word, 0)
-            weighted_avg = (prob_pos * data.prior_pos) + (prob_neg * data.prior_neg)
+            weighted_avg =( (prob_pos * data.prior_pos) + (prob_neg * data.prior_neg) ) / 2
             weighted_diff = abs(prob_pos * data.prior_pos - prob_neg * data.prior_neg)
             tfidf_score = tfidf_scores.get(word, 0)
 
@@ -1316,6 +1350,31 @@ def save_word_stats_to_csv(data: Data, filename="word_statistics.csv"):
                              "Score TF-IDF =", f"{tfidf_score}","différence du nombre d'occurence pondéré =",f"{abs( data.count_m_pos.get(word, 0) - (data.count_m_neg.get(word, 0) / 4 ) )}"])
 
     print(f" Fichier '{filename}' créé avec succès !")
+    return
+
+
+#
+#
+##
+#
+#"
+#
+#
+#
+#
+#
+#
+#
+#
+#Rédiger la doc pour cette fonction
+#
+#
+#
+#
+#
+#
+#
+#
 
 
 def generate_training_data_with_best_stop_word(n: int, string: list[str], caution: Tableau, rebalancage = False, seed = 55264, mode = "oversample"):
@@ -1344,27 +1403,13 @@ def generate_training_data_with_best_stop_word(n: int, string: list[str], cautio
     # neg_final_sorted_dict.clear()
 
 
-    pos_words_list = [ tokenize( x, caution, type_of_caution_is_default= False ) for x in ( conca_pos.split() ) ]
-    neg_words_list = [ tokenize( x, caution, type_of_caution_is_default= False ) for x in ( conca_neg.split() ) ]
+    pos_words_list = [ tokenize( x, caution, use_default_caution= False ) for x in ( conca_pos.split() ) ]
+    neg_words_list = [ tokenize( x, caution, use_default_caution= False ) for x in ( conca_neg.split() ) ]
     pos_final_sorted_dict = liste_occurrences(pos_words_list,caution, use_default_caution = False)
     neg_final_sorted_dict = liste_occurrences(neg_words_list,caution, use_default_caution = False)
 
-    return  ( Data(len(pos), len(neg), pos_final_sorted_dict, neg_final_sorted_dict) )
-
-
-def generate_training_data_using_best_stop_word(string: list[str], caution: Tableau):
-    pos,neg = seperate_pos_nega(string)
-
-    conca_pos = conca_str_in_list(pos)
-    conca_neg = conca_str_in_list(neg)
-
-    pos_words_list = [ tokenize( x, caution, type_of_caution_is_default= False ) for x in ( conca_pos.split() ) ]
-    neg_words_list = [ tokenize( x, caution, type_of_caution_is_default= False ) for x in ( conca_neg.split() ) ]
-
-    pos_final_sorted_dict = liste_occurrences(pos_words_list,caution, use_default_caution = False)
-    neg_final_sorted_dict = liste_occurrences(neg_words_list,caution, use_default_caution = False)
-
-    return  ( Data(len(pos), len(neg), pos_final_sorted_dict, neg_final_sorted_dict) )
+    return  ( Data(len(pos), len(neg), pos_final_sorted_dict, neg_final_sorted_dict))
+#
 
 
 
@@ -1372,15 +1417,66 @@ def generate_training_data_using_best_stop_word(string: list[str], caution: Tabl
 
 
 
+    #########################################################
+    #########################################################
+    #########################################################
+    ######### Fonction utilisant le multiprocessing #########
+    #########################################################
+    #########################################################
+    #########################################################
+
+def split_list(lst: list, n: int)->list[list]:
+    """
+    Divise lst en n sous-listes aussi équilibrées que possible.
+    Exemple : split_list([1,2,3,4,5], 2) => [[1,2,3], [4,5]]
+    """
+    total = len(lst)
+    result = []
+    start = 0
+
+    for i in range(n):
+        # Calcule la taille de cette sous-liste
+        remaining_items = total - start
+        remaining_slots = n - i
+        size = (remaining_items + remaining_slots - 1) // remaining_slots
+        end = start + size
+
+        # Découpe et ajoute la sous-liste
+        result.append(lst[start:end])
+        start = end
+
+        if start >= total:
+            break  # Plus rien à découper
+
+    return result
+
+def find_best_stop_word(vocab_chunk, train_df, dev_df, shared_list, lock):
+    local_caution = Tableau()
+    temp_data_holder = generate_training_data(train_df, local_caution, caution_type=False)
+    max_accuracy = naive_bayesian_prediction(dev_df, temp_data_holder, local_caution, mode=2)
+
+    for word in vocab_chunk:
+        del temp_data_holder
+        local_caution.function_word_generated.append(word)
+        temp_data_holder = generate_training_data(train_df, local_caution, caution_type=False)
+        acc = naive_bayesian_prediction(dev_df, temp_data_holder, local_caution, mode=2, verbose=False)
+
+        if acc > max_accuracy:
+            max_accuracy = acc
+        else:
+            local_caution.function_word_generated.remove(word)
+
+    # Ajout sécurisé dans la liste partagée
+    with lock:
+        shared_list.extend(local_caution.function_word_generated)
 
 # ----------------------------
 # Fonction exécutée par chaque process
 def process_function(seed_subset, max_result, lock, train_df, test_df, caution, tested_seeds_counter, update_queue, timing_info,method = "undersample"):
     for seed in seed_subset:
         start_time = time.time()
-
         proba_train_recalibrated = generate_training_data_with_calibrage(train_df, caution, random_seed=seed, balancing_method= method)
-        a = naive_bayesian_prediction(test_df, proba_train_recalibrated, caution)
+        a = naive_bayesian_prediction(test_df, proba_train_recalibrated, caution, verbose = False)
 
         with lock:
             if a > max_result["value"]:
@@ -1402,9 +1498,63 @@ def process_function(seed_subset, max_result, lock, train_df, test_df, caution, 
 
 
 
+def worker_non_zero(sublist, tweets, labels, data_proba, caution, lock, best_result):
+    for non_zero in sublist:
+        prediction = [
+            classification_tweet_basique(tweet, data_proba, caution, non_zero_para=non_zero)
+            for tweet in tweets
+        ]
+        accuracy = matrice_confusion(labels, prediction, verbose=True)
+
+        # Mise à jour du meilleur résultat
+        with lock:
+            if accuracy > best_result['accuracy']:
+                best_result['accuracy'] = accuracy
+                best_result['non_zero'] = non_zero
+                pass
+            pass
+        pass
+    pass
+
+def start_processes2(non_zero_list, test_set, data_proba, caution, num_processes):
+    labels,tweets = sep_tweet_label(test_set)
+    manager = multiprocessing.Manager()
+    best_result = manager.dict({'accuracy': 0.0, 'non_zero': None})
+    lock = manager.Lock()
+
+    chunk_size = len(non_zero_list) // num_processes
+    processes = []
+
+    for i in range(num_processes):
+        start = i * chunk_size
+        if (  i  == ( num_processes - 1 ) ):
+            end = None  
+        else :
+            end = (i + 1) * chunk_size
+        sublist = non_zero_list[start:end]
+
+        p = multiprocessing.Process(target=worker_non_zero, args=(
+            sublist, tweets, labels, data_proba, caution, lock, best_result
+        ))
+        processes.append(p)
+        p.start()
+
+    for p in processes:
+        p.join()
+
+    # Affichage
+    print(f"\n Meilleur non_zero_para : {best_result['non_zero']:.8f} avec une précision de {best_result['accuracy']:.5f}")
+
+    # Sauvegarde dans un fichier texte
+    with open("best_non_zero.txt", "w") as f:
+        f.write(f"Best non_zero_para: {best_result['non_zero']:.8f}\n")
+        f.write(f"Accuracy: {best_result['accuracy']:.4f}\n")
+        return
+
+
 def start_processes(seed, max_result, lock, train_df, dev_df, caution,
                     tested_seeds_counter, update_queue, timing_info,
-                    num_processes, seeds_per_process, method):
+                    num_processes, seeds_per_process, method_of_balancing):
     """
     Lance plusieurs processus en parallèle pour tester différentes seeds,
     avec une stratégie de rééchantillonnage spécifiée par l'utilisateur.
@@ -1421,7 +1571,7 @@ def start_processes(seed, max_result, lock, train_df, dev_df, caution,
         timing_info (multiprocessing.Manager().dict): Dictionnaire partagé pour stocker les temps d'exécution.
         num_processes (int): Nombre de processus à lancer.
         seeds_per_process (int): Nombre de seeds à attribuer à chaque processus.
-        method (str): Méthode de rééchantillonnage à utiliser ( "oversample" ou "undersample" ).
+        method_of_balancing (str): Méthode de rééchantillonnage à utiliser ( "oversample" ou "undersample" ).
 
     Résultat :
         Écrit dans un fichier texte le meilleur résultat trouvé.
@@ -1437,7 +1587,7 @@ def start_processes(seed, max_result, lock, train_df, dev_df, caution,
             target=process_function,
             args=(seed_subset, max_result, lock, train_df, dev_df, caution,
                   tested_seeds_counter, update_queue, timing_info),
-            kwargs={"method": method}  # Méthode dynamique passée ici
+            kwargs={"method": method_of_balancing}  # Méthode dynamique passée ici
         )
         processes.append(p)
         p.start()
@@ -1458,14 +1608,8 @@ def start_processes(seed, max_result, lock, train_df, dev_df, caution,
 ################# Appel de la fonction main #################
 #############################################################
 
-dev_dfs = read_file_from_csv("./tweets_dev.csv")
-train_dfs = read_file_from_csv("./tweets_train.csv")
-test_dfs = read_file_from_csv("./tweets_test.csv")
-cautions = Tableau()
-proba_train_recalibrated = generate_training_data_with_calibrage(train_dfs, cautions, random_seed=55264)
-a = naive_bayesian_prediction(dev_dfs, proba_train_recalibrated, cautions)
 
-opmega=123# est utilisé en tant que breakpoint
+
 
 if __name__ == "__main__":
     main()
